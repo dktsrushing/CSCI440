@@ -79,7 +79,7 @@ window.onload = function init()
 
 
     // Generate 200 stars at random positions, push to vertex and color arrays
-    for (var i = 1; i < 200; ++i){
+    for (var i = 0; i < 200; ++i){
         // Generate number 0 to 2, -1 for range -1 to 1
         var x = Math.random() * 2 -1;
         var y = Math.random() * 2 - 1;
