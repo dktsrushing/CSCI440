@@ -50,6 +50,7 @@ window.onload = function init()
     //
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0.5, 1.0, 1.0, 1.0);
+    gl.enable(gl.DEPTH_TEST);
 
 
     //  Load shaders and initialize attribute buffers
@@ -57,17 +58,17 @@ window.onload = function init()
     gl.useProgram(program);
 
     var sunVertices = [
-        vec2(-0.6, 0.8),
-        vec2(-.8, 0.8),
-        vec2(-0.6, .6),
-        vec2(-.8, .6)
+        vec3(-0.6, 0.8, 0.0),
+        vec3(-.8, 0.8, 0.0),
+        vec3(-0.6, .6, 0.0),
+        vec3(-.8, .6, 0.0)
     ];
 
     var moonVertices = [
-        vec2(-2.4, 0.8),
-        vec2(-2.6, 0.8),
-        vec2(-2.4, .6),
-        vec2(-2.6, .6)
+        vec3(-2.4, 0.8, 0.0),
+        vec3(-2.6, 0.8, 0.0),
+        vec3(-2.4, .6, 0.0),
+        vec3(-2.6, .6, 0.0)
     ];
 
     var moonColors = [
@@ -83,7 +84,7 @@ window.onload = function init()
         // Generate number 0 to 2, -1 for range -1 to 1
         var x = Math.random() * 2 -1;
         var y = Math.random() * 2 - 1;
-        starVertices.push(vec2(x,y));
+        starVertices.push(vec3(x,y, 0.5));
         starColors.push(vec3(backRed, backGreen, backBlue));
     }
 
@@ -122,7 +123,7 @@ window.onload = function init()
     // Associate out shader variables with our data bufferData
 
     positionLoc = gl.getAttribLocation(program, "aPosition");
-    gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
 
     timeLoc = gl.getUniformLocation(program, "uTime");
@@ -134,7 +135,7 @@ window.onload = function init()
 function render() {
     // Set background color
     gl.clearColor(backRed, backGreen, backBlue, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Background colors gradually decrease, becoming close to black
     if (backRed > 0.0 && backGreen > 0.0 && backBlue > 0.0){
@@ -203,7 +204,7 @@ function render() {
     gl.enableVertexAttribArray(colorLoc);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, sunBufferId);
-    gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
@@ -213,7 +214,7 @@ function render() {
     gl.enableVertexAttribArray(colorLoc);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, moonBufferId);
-    gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
@@ -227,7 +228,7 @@ function render() {
     gl.enableVertexAttribArray(colorLoc);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, starBuffer);
-    gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
     gl.drawArrays(gl.POINTS, 0, starVertices.length);
 

@@ -7,7 +7,7 @@
 <script id="vertex-shader" type="x-shader/x-vertex">
 #version 300 es
 
-in vec4 aPosition;
+in vec3 aPosition;
 in vec3 aColor;
 out vec4 vColor;
 uniform float uTime;
@@ -16,7 +16,7 @@ void
 main()
 {
     gl_PointSize = 2.0;
-    gl_Position = vec4(aPosition.x + uTime, aPosition.y, 0.0, 1.0);
+    gl_Position = vec4(aPosition.x + uTime, aPosition.y, aPosition.z, 1.0);
 
     vColor = vec4(aColor, 1.0);
 }
