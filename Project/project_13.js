@@ -8,10 +8,26 @@ var moonBufferId;
 var sunColorBuffer;
 var moonColorBuffer;
 var starColorBuffer;
+var star1BufferId;
+var star1ColorBuffer;
 var starBuffer;
 var positionLoc;
 var colorLoc;
+var modelViewMatrix = mat4();
+var modelViewMatrixLoc;
+var lifted = false;
+var doneLifting = false;
+var star1Vertices = [];
+var star1Colors = [];
+var star1Spawned = false;
+var star1Matrix;
+var starLift = 0.0;
+var start = false;
 
+var stopTimer = 0.0;
+var lift = 0.0;
+var liftFactor = 0.0018;
+var pause = 0.0;
 var time = 0.0;             //Control for movement and color transitions
 var slow = 0.0;             //Modifies speed to create gradual transitions
 var speed = 0.0017;         //Modifies time
@@ -58,17 +74,17 @@ window.onload = function init()
     gl.useProgram(program);
 
     var sunVertices = [
-        vec3(-0.6, 0.8, 0.0),
-        vec3(-.8, 0.8, 0.0),
-        vec3(-0.6, .6, 0.0),
-        vec3(-.8, .6, 0.0)
+        vec3(-0.6, 0.7, 0.0),
+        vec3(-.8, 0.7, 0.0),
+        vec3(-0.6, .5, 0.0),
+        vec3(-.8, .5, 0.0)
     ];
 
     var moonVertices = [
-        vec3(-2.4, 0.8, 0.0),
-        vec3(-2.6, 0.8, 0.0),
-        vec3(-2.4, .6, 0.0),
-        vec3(-2.6, .6, 0.0)
+        vec3(-2.4, 0.7, 0.0),
+        vec3(-2.6, 0.7, 0.0),
+        vec3(-2.4, .5, 0.0),
+        vec3(-2.6, .5, 0.0)
     ];
 
     var moonColors = [
@@ -79,15 +95,19 @@ window.onload = function init()
     ];
 
 
+
     // Generate 200 stars at random positions, push to vertex and color arrays
-    for (var i = 0; i < 200; ++i){
+    for (var i = 0; i < 8000; ++i){
         // Generate number 0 to 2, -1 for range -1 to 1
         var x = Math.random() * 2 -1;
-        var y = Math.random() * 2 - 1;
+        var y = Math.random() * 80 -79;
         starVertices.push(vec3(x,y, 0.5));
         starColors.push(vec3(backRed, backGreen, backBlue));
     }
 
+    document.getElementById( "start" ).onclick = function () {
+        start = true;
+    };
     // Load the data into the GPU
 
     moonColorBuffer = gl.createBuffer();
@@ -114,6 +134,12 @@ window.onload = function init()
     gl.bindBuffer(gl.ARRAY_BUFFER, starBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(starVertices), gl.STATIC_DRAW);
 
+    star1ColorBuffer = gl.createBuffer();
+
+
+    star1BufferId = gl.createBuffer();
+
+
 
 
     colorLoc = gl.getAttribLocation(program, "aColor");
@@ -127,6 +153,7 @@ window.onload = function init()
     gl.enableVertexAttribArray(positionLoc);
 
     timeLoc = gl.getUniformLocation(program, "uTime");
+    modelViewMatrixLoc = gl.getUniformLocation(program, "uModelViewMatrix");
 
     render();
 };
@@ -136,6 +163,8 @@ function render() {
     // Set background color
     gl.clearColor(backRed, backGreen, backBlue, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+if (start==true){
 
     // Background colors gradually decrease, becoming close to black
     if (backRed > 0.0 && backGreen > 0.0 && backBlue > 0.0){
@@ -194,9 +223,76 @@ function render() {
         //  console.log(time);  //Tracking time when speed reaches 0
     }
 
+
+
+    if (speed <= 0.0 && pause <= 0.3){
+        pause += 0.015
+    }
+    if (pause >= 0.30 && doneLifting == false){
+        lift += liftFactor;
+        if (star1Spawned == true){
+            starLift += liftFactor;
+        }
+        if (liftFactor < 0.28 && lifted == false && star1Spawned == false){
+            liftFactor *= 1.0118;
+            console.log(liftFactor);
+            if (liftFactor >= 0.28){
+                lifted = true;
+            }
+            modelViewMatrix = mat4();
+
+            modelViewMatrix = mult(translate(0.0, lift, 0.0), modelViewMatrix);
+        }
+        else if (lifted == true && liftFactor >= 0.006 && star1Spawned == false){
+            liftFactor *= 0.987;
+            console.log(liftFactor);
+            modelViewMatrix = mat4();
+
+            modelViewMatrix = mult(translate(0.0, lift, 0.0), modelViewMatrix);
+        }
+        else if (lifted == true && liftFactor < 0.06 && star1Spawned == false){
+            star1Spawned = true;
+                star1Vertices = [
+                    vec3(0.0, -1.2, 0.0),
+                    vec3(0.15, -1.6, 0.0),
+                    vec3(-0.225, -1.35, 0.0),
+                    vec3(0.225, -1.35, 0.0),
+                    vec3(-0.15, -1.6, 0.0),
+                    vec3(0.0, -1.2, 0.0),
+                ];
+            for (var i = 0; i < 6; i++) {
+            star1Colors.push(vec3(1.0, 1.0, 0.8)); // warm white star
+            }
+            gl.bindBuffer(gl.ARRAY_BUFFER, star1BufferId);
+            gl.bufferData(gl.ARRAY_BUFFER, flatten(star1Vertices), gl.STATIC_DRAW);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, star1ColorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, flatten(star1Colors), gl.STATIC_DRAW);
+
+            
+        }
+        else if(star1Spawned == true && stopTimer < 1.0){
+            stopTimer += 0.005;
+            modelViewMatrix = mat4();
+
+            modelViewMatrix = mult(translate(0.0, lift, 0.0), modelViewMatrix);
+        }
+        else if (stopTimer >= 1.0 && liftFactor >= 0.001){
+            liftFactor *= 0.985;
+            modelViewMatrix = mat4();
+
+            modelViewMatrix = mult(translate(0.0, lift, 0.0), modelViewMatrix);
+        }
+        else{
+            doneLifting = !doneLifting;
+        }
+
+    }
+}
     // Time passed to vertex shader, moves sun and moon
     gl.uniform1f(timeLoc, time);
 
+    
     // Sun color and vertex values sent to shaders
     gl.bindBuffer(gl.ARRAY_BUFFER, sunColorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(sunColors), gl.DYNAMIC_DRAW);
@@ -206,7 +302,9 @@ function render() {
     gl.bindBuffer(gl.ARRAY_BUFFER, sunBufferId);
     gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
+    gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
 
     // Moon color and vertex values sent to shaders
     gl.bindBuffer(gl.ARRAY_BUFFER, moonColorBuffer);
@@ -216,10 +314,12 @@ function render() {
     gl.bindBuffer(gl.ARRAY_BUFFER, moonBufferId);
     gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
+    gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // Change uTime to 0.0, so stars do not move with sun and moon
     gl.uniform1f(timeLoc, 0.0);
+
 
     // Star color and vertex values sent to shaders
     gl.bindBuffer(gl.ARRAY_BUFFER, starColorBuffer);
@@ -230,7 +330,30 @@ function render() {
     gl.bindBuffer(gl.ARRAY_BUFFER, starBuffer);
     gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
+    gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
     gl.drawArrays(gl.POINTS, 0, starVertices.length);
+
+    if (star1Spawned) {
+        // Create a separate matrix for the rising star
+        if (doneLifting == false){
+            star1Matrix = mult(mat4(), translate(0.0, starLift, 0.0));
+
+        }
+        gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(star1Matrix));
+
+        // Star color
+        gl.bindBuffer(gl.ARRAY_BUFFER, star1ColorBuffer);
+        gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(colorLoc);
+
+        // Star vertices
+        gl.bindBuffer(gl.ARRAY_BUFFER, star1BufferId);
+        gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(positionLoc);
+
+        // Draw the 10-vertex star
+        gl.drawArrays(gl.LINE_STRIP, 0, 6);
+    }
 
     requestAnimationFrame(render);
 }

@@ -3,6 +3,7 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
 <title>Rotating Square</title>
+<button id= "start">Start</button>
 
 <script id="vertex-shader" type="x-shader/x-vertex">
 #version 300 es
@@ -11,12 +12,14 @@ in vec3 aPosition;
 in vec3 aColor;
 out vec4 vColor;
 uniform float uTime;
+uniform mat4 uModelViewMatrix;
 
 void
 main()
 {
     gl_PointSize = 2.0;
-    gl_Position = vec4(aPosition.x + uTime, aPosition.y, aPosition.z, 1.0);
+    vec4 moved = vec4(aPosition.x + uTime, aPosition.y, aPosition.z, 1.0);
+    gl_Position = uModelViewMatrix * moved;
 
     vColor = vec4(aColor, 1.0);
 }
@@ -42,7 +45,7 @@ main()
 </head>
 
 <body>
-<canvas id="gl-canvas" width="512" height="512">
+<canvas id="gl-canvas" width="800" height="800">
 Oops ... your browser doesn't support the HTML5 canvas element
 </canvas>
 </body>
