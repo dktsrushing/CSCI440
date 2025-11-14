@@ -7,7 +7,7 @@ var program;
 var projectionMatrixLoc;
 var angle = 0.0;
 var pan = 0.0;
-var panAccel=0.001;
+var panAccel=0.0015;
 var panTime = 0.0;
 var panDone = false;
 var moonShift = 0.0;
@@ -50,6 +50,8 @@ var starLift = 0.0;
 var start = false;
 
 var starStop = false;
+var starTime = 0.0;
+var starGo = false;
 
 var stopTimer = 0.0;
 var lift = 0.0;
@@ -67,6 +69,33 @@ var starRed = backRed;      //Star red value
 var starGreen = backGreen;  //Star green value
 var starBlue = backBlue;    //Star blue value
 
+
+var starsGenerated = false;
+var starsInPosition = false;
+var star1ModelViewMatrix = mat4();
+var star2ModelViewMatrix = mat4();
+var starView = mat4();
+
+
+var star1X = 2.0, star1Y = 0.0, star1Z = -1.5;
+var star2X = -2.0, star2Y = 0.0, star2Z = -1.5;
+var star1VelX = -0.008, star1VelY = 0.0, star1VelZ = 0.0;
+var star2VelX = 0.008, star2VelY = 0.0, star2VelZ = 0.0;
+var rotationSpeed = 0.1;
+var collision = false;
+var lastCollision = false;
+var TEMP_TEST_PAUSE = 0.0;
+// Calculate distance between star centers
+var dx;
+var dy;
+var dz;
+var distance;
+var starsMet = false;
+
+var starRadius = 0.16; // outerRadius
+var collisionDistance = starRadius * 1.1;
+
+
 var sunColors = [];
 for (let i = 0; i < 42; i++) {
     sunColors.push(vec3(1.0, sunset, 0.0));
@@ -81,6 +110,116 @@ for (let i = 0; i < 42; i++) {
 // Arrays for randomly generated stars
 var starVertices = [];
 var starColors = [];
+
+
+
+
+// Function to generate a 3D star
+function generateStar3D(centerX, centerY, centerZ, outerRadius, innerRadius, depth, points) {
+    var vertices = [];
+    var angleStep = (2 * Math.PI) / points;
+    var angleOffset = Math.PI / 2; // ADD THIS: rotates everything 90° counterclockwise so first point aims up
+    
+    // Generate front face vertices
+    var frontVertices = [];
+    for (var i = 0; i < points * 2; i++) {
+        var angle = i * angleStep / 2 + angleOffset; // ADD angleOffset here
+        var radius = (i % 2 === 0) ? outerRadius : innerRadius;
+        frontVertices.push(vec3(
+            centerX + radius * Math.cos(angle),
+            centerY + radius * Math.sin(angle),
+            centerZ + depth / 2
+        ));
+    }
+    
+    // Generate back face vertices
+    var backVertices = [];
+    for (var i = 0; i < points * 2; i++) {
+        var angle = i * angleStep / 2 + angleOffset; // ADD angleOffset here
+        var radius = (i % 2 === 0) ? outerRadius : innerRadius;
+        backVertices.push(vec3(
+            centerX + radius * Math.cos(angle),
+            centerY + radius * Math.sin(angle),
+            centerZ - depth / 2
+        ));
+    }
+    
+    // Create triangles for front face (centered star)
+    for (var i = 0; i < points * 2; i++) {
+        var next = (i + 1) % (points * 2);
+        vertices.push(vec3(centerX, centerY, centerZ + depth / 2));
+        vertices.push(frontVertices[i]);
+        vertices.push(frontVertices[next]);
+    }
+    
+    // Create triangles for back face (centered star)
+    for (var i = 0; i < points * 2; i++) {
+        var next = (i + 1) % (points * 2);
+        vertices.push(vec3(centerX, centerY, centerZ - depth / 2));
+        vertices.push(backVertices[next]);
+        vertices.push(backVertices[i]);
+    }
+    
+    // Create side triangles connecting front and back
+    for (var i = 0; i < points * 2; i++) {
+        var next = (i + 1) % (points * 2);
+        
+        // First triangle
+        vertices.push(frontVertices[i]);
+        vertices.push(backVertices[i]);
+        vertices.push(frontVertices[next]);
+        
+        // Second triangle
+        vertices.push(frontVertices[next]);
+        vertices.push(backVertices[i]);
+        vertices.push(backVertices[next]);
+    }
+    
+    return vertices;
+}
+
+var star1Vertices = [];
+var star2Vertices = [];
+
+// Generate colors for big stars
+function generateStarColors(numVertices) {
+    var colors = [];
+    for (var i = 0; i < numVertices; i++) {
+        colors.push(vec3(1.0, 1.0, 0.45)); // Gold color
+    }
+    return colors;
+}
+
+// Function to get all star edge points (outer AND inner points)
+function getStarEdgePoints(centerX, centerY, centerZ, outerRadius, innerRadius, rotation) {
+    var points = [];
+    var angleStep = (2 * Math.PI) / 5;
+    var angleOffset = Math.PI / 2;
+    
+    for (var i = 0; i < 10; i++) { // 10 points: 5 outer + 5 inner
+        var angle = i * angleStep / 2 + angleOffset + radians(rotation);
+        var radius = (i % 2 === 0) ? outerRadius : innerRadius;
+        var x = centerX + radius * Math.cos(angle);
+        var y = centerY + radius * Math.sin(angle);
+        points.push({x: x, y: y, z: centerZ});
+    }
+    return points;
+}
+
+// Check if two line segments intersect
+function lineSegmentsIntersect(p1, p2, p3, p4) {
+    var denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
+    if (Math.abs(denom) < 0.0001) return false; // parallel
+    
+    var ua = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denom;
+    var ub = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denom;
+    
+    return (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1);
+}
+
+
+var star1Colors = [];
+var star2Colors = [];
 
 
 window.onload = function init()
@@ -152,24 +291,6 @@ window.onload = function init()
     document.getElementById( "start" ).onclick = function () {
         start = true;
     };
-    // Load the data into the GPU
-    star1Vertices = [
-        vec3(0.0+.2, 0.6-.7, -0.5),
-        vec3(0.15+.2, 0.2-.7, -0.5),
-        vec3(-0.225+.2, 0.4-.7, -0.5),
-        vec3(0.225+.2, 0.4-.7, -0.5),
-        vec3(-0.15+.2, 0.2-.7, -0.5),
-        vec3(0.0+.2, 0.6-.7, -0.5),
-    ];
-
-
-    var star1Colors = [];
-    for (var i = 0; i < 6; i++) {
-        star1Colors.push(vec3(1.0, 1.0, 0.8)); // warm white star
-    }
-
-
-
 
     moonColorBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, moonColorBuffer);
@@ -195,9 +316,9 @@ window.onload = function init()
     gl.bindBuffer(gl.ARRAY_BUFFER, starBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(starVertices), gl.STATIC_DRAW);
 
+
+/*
     star1ColorBuffer = gl.createBuffer();
-
-
     star1BufferId = gl.createBuffer();
 
     gl.bindBuffer(gl.ARRAY_BUFFER, star1BufferId);
@@ -206,22 +327,6 @@ window.onload = function init()
     gl.bindBuffer(gl.ARRAY_BUFFER, star1ColorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(star1Colors), gl.STATIC_DRAW);
 
-    // Second big star
-    var star2Vertices = [];
-    for (var i = 0; i < star1Vertices.length; i++) {
-        star2Vertices.push(vec3(
-            star1Vertices[i][0] - 0.65,
-            star1Vertices[i][1] - 0.5,
-            star1Vertices[i][2]
-        ));
-    }
-
-    var star2Colors = [];
-    for (var i = 0; i < 6; i++) {
-        star2Colors.push(vec3(1.0, 1.0, 0.8));
-    }
-
-    // Create and upload buffers
     star2BufferId = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, star2BufferId);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(star2Vertices), gl.STATIC_DRAW);
@@ -229,15 +334,18 @@ window.onload = function init()
     star2ColorBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, star2ColorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(star2Colors), gl.STATIC_DRAW);
+*/
 
 
+    star1ColorBuffer = gl.createBuffer();
+    star1BufferId = gl.createBuffer();
+    star2BufferId = gl.createBuffer();
+    star2ColorBuffer = gl.createBuffer();
 
 
     colorLoc = gl.getAttribLocation(program, "aColor");
     gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(colorLoc);
-
-    // Associate out shader variables with our data bufferData
 
     positionLoc = gl.getAttribLocation(program, "aPosition");
     gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
@@ -324,6 +432,8 @@ if (start==true){
     if (speed <= 0.0002 && pause <= 0.5){
             pause += 0.015
         }
+
+
 /* OLD STUFF
     if (speed <= 0.0002 && pause <= 0.5){
         pause += 0.015
@@ -389,6 +499,8 @@ if (start==true){
 
     }
 */
+
+
 }
 
 
@@ -398,9 +510,6 @@ if (start==true){
         gl.uniform1f(timeLoc, time);
         gl.uniform1f(moonLoc, moonShift);
 
-        
-
-        // Start with identity so your existing sun/moon math behaves like before
         gl.uniformMatrix4fv(projectionMatrixLoc, false, flatten(mat4()));
         
 
@@ -453,15 +562,15 @@ if (start==true){
 
         moonShift = pan;
 
-        if (panTime < 3.0){
-            panAccel *= 1.02;
+        if (panTime < 1.88){
+            panAccel *= 1.025;
             panTime += 0.01;
-            if (panTime >= 2.3){
+            if (panTime >= 1.5){
                 moonDone = true;
             }
         }
-        else if (panTime >= 3.0){
-            panAccel *= 0.978;
+        else if (panTime >= 1.88){
+            panAccel *= 0.975;
             panTime += 0.01;
             console.log("PanAccel: ", panAccel);
             if (panTime >= 4.0){
@@ -472,6 +581,17 @@ if (start==true){
     else if (panAccel <= 0.0001){
         panDone = true;
     }
+
+/*    if (panDone == true && starGo == false){
+        starTime += 0.1;
+        console.log("starTime: ", starTime);
+        if (starTime >= 8.0){
+            starGo = true;
+        }
+    }
+*/
+
+
 /*
     if (panDone && !panDown) {
         panDown = true;
@@ -491,11 +611,11 @@ if (start==true){
 */
 
     eye = vec3(0.0, 0.0, 1.0);
-    // Camera pans vertically in a smooth loop
-    var verticalAngle = pan; // reuse same variable
-    var radius = 1.5; // how far the camera looks
-    var y = Math.sin(verticalAngle); // up/down motion
-    var z = Math.cos(verticalAngle); // depth to keep it looping
+    // Camera pans vertically
+    var verticalAngle = pan;
+    //var radius = 1.5; //
+    var y = Math.sin(verticalAngle); 
+    var z = Math.cos(verticalAngle); 
 
     if (panDown == false) {
         at = vec3(0.0, y, -z);
@@ -510,10 +630,13 @@ if (start==true){
 
 
 
+
+
+
     gl.uniform1f(timeLoc, 0.0);
     gl.uniform1f(moonLoc, 0.0);
 
-    // Star color and vertex values sent to shaders
+
     gl.bindBuffer(gl.ARRAY_BUFFER, starColorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(starColors), gl.DYNAMIC_DRAW);
     gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
@@ -524,33 +647,152 @@ if (start==true){
     gl.enableVertexAttribArray(positionLoc);
     gl.drawArrays(gl.POINTS, 0, starVertices.length);
 
-    if (starReady) {
+
+    if (panDone && !starsGenerated) {
+        // Camera has stopped, spawn stars OFF-SCREEN to the left and right
+        //var centerY = at[1]; 
+        //var centerZ = at[2] - 1.5;
+        
+        // Far left and far right, off-screen
+        star1Vertices = generateStar3D(0.0, 0.0, 0.0, 0.16, 0.064, 0.04, 5);
+        star2Vertices = generateStar3D(0.0, 0.0, 0.0, 0.16, 0.064, 0.04, 5);
+        
+        // Set starting positions
+        star1X = 1.7;
+        star1Y = at[1];
+        star1Z = at[2] - 1.5;
+        
+        star2X = -1.7;
+        star2Y = at[1];
+        star2Z = at[2] - 1.5;
+
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, star1BufferId);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(star1Vertices), gl.STATIC_DRAW);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, star2BufferId);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(star2Vertices), gl.STATIC_DRAW);
+        
+        star1Colors = generateStarColors(star1Vertices.length);
+        star2Colors = generateStarColors(star2Vertices.length);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, star1ColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(star1Colors), gl.STATIC_DRAW);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, star2ColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(star2Colors), gl.STATIC_DRAW);
+        
+        starsGenerated = true;
+        starReady = true; 
+    }
+
+
+    if (panDone && starsMet == false) {
+        if (starsMet == false) {
+
+            // Pause upon contact for demonstration
+            if (TEMP_TEST_PAUSE == 0.0 || TEMP_TEST_PAUSE >= 2.0){
+                star1X += star1VelX;
+                star1Y += star1VelY;
+                star1Z += star1VelZ;
+                
+                star2X += star2VelX;
+                star2Y += star2VelY;
+                star2Z += star2VelZ;
+            }
+                
+            // Apply transforms
+            
+            star1ModelViewMatrix = mat4();
+            star1ModelViewMatrix = mult(star1ModelViewMatrix, translate(star1X, star1Y, star1Z));
+            star1ModelViewMatrix = mult(star1ModelViewMatrix, rotate(rotationSpeed, 0.0, 0.0, 1.0));
+        
+            
+            star2ModelViewMatrix = mat4();
+            star2ModelViewMatrix = mult(star2ModelViewMatrix, translate(star2X, star2Y, star2Z));
+            star2ModelViewMatrix = mult(star2ModelViewMatrix, rotate(rotationSpeed, 0.0, 0.0, 1.0));
+            if (!lastCollision){
+                rotationSpeed += 0.25;
+            }
+
+            var star1Points = getStarEdgePoints(star1X, star1Y, star1Z, 0.16, 0.064, rotationSpeed);
+            var star2Points = getStarEdgePoints(star2X, star2Y, star2Z, 0.16, 0.064, rotationSpeed);
+                    
+            // Check for collision  
+            collision = false;
+            if (!collision){
+                for (var i = 0; i < star1Points.length; i++) {
+                    var p1 = star1Points[i];
+                    var p2 = star1Points[(i + 1) % star1Points.length]; // next point (wraps around)
+                    
+                    for (var j = 0; j < star2Points.length; j++) {
+                        var p3 = star2Points[j];
+                        var p4 = star2Points[(j + 1) % star2Points.length];
+                        
+                        if (lineSegmentsIntersect(p1, p2, p3, p4)) {
+                            collision = true;
+                            console.log("Collision detected");
+                            break;
+                        }
+                    }
+                    if (collision) break;
+                }
+            }
+
+            if (collision && !lastCollision){
+                star1VelX = -star1VelX;
+                star2VelX = -star2VelX;
+
+            }
+            lastCollision = collision;
+            if (lastCollision){
+                TEMP_TEST_PAUSE += 0.03;
+            }
+                    
+            /*if (collision) {
+                starsMet = true;
+            }*/
+
+        }
+        
+    }
+
+    if (starReady && panDone) {
+
         var aspect = canvas.width / canvas.height;
         var starProjection = perspective(45.0, aspect, 0.1, 100.0);
         gl.uniformMatrix4fv(projectionMatrixLoc, false, flatten(starProjection));
+        
+/*
+        if (starGo == true){
+            star1ModelViewMatrix = mult(translate(0.001, 0.0, 0.0), star1ModelViewMatrix);
+            star2ModelViewMatrix = mult(translate(-0.001, 0.001, 0.0), star2ModelViewMatrix);
+        }
+*/
+        
 
-        gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(starView)); // same as stars
-
+        var finalStar1View = mult(starView, star1ModelViewMatrix);
+        gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(finalStar1View));
+        
         gl.bindBuffer(gl.ARRAY_BUFFER, star1ColorBuffer);
         gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(colorLoc);
-
         gl.bindBuffer(gl.ARRAY_BUFFER, star1BufferId);
         gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(positionLoc);
+        gl.drawArrays(gl.TRIANGLES, 0, star1Vertices.length);
+        
 
-        gl.drawArrays(gl.LINE_STRIP, 0, 6);
-
-        // Draw second star
+        var finalStar2View = mult(starView, star2ModelViewMatrix);
+        gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(finalStar2View));
+        
         gl.bindBuffer(gl.ARRAY_BUFFER, star2ColorBuffer);
         gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(colorLoc);
-
         gl.bindBuffer(gl.ARRAY_BUFFER, star2BufferId);
         gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(positionLoc);
-
-        gl.drawArrays(gl.LINE_STRIP, 0, 6);
+        gl.drawArrays(gl.TRIANGLES, 0, star2Vertices.length);
     }
 
 
