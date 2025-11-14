@@ -13,6 +13,8 @@ var panDone = false;
 var moonShift = 0.0;
 var moonShiftSpeed = 0.001;
 var moonLoc;
+var moonDone = false;
+var starReady = false;
 
 var panDown = false;
 var panDownSpeed = 0.0015;
@@ -152,12 +154,12 @@ window.onload = function init()
     };
     // Load the data into the GPU
     star1Vertices = [
-        vec3(0.0, -0.8, -0.5),
-        vec3(0.15, -1.2, -0.5),
-        vec3(-0.225, -1.0, -0.5),
-        vec3(0.225, -1.0, -0.5),
-        vec3(-0.15, -1.2, -0.5),
-        vec3(0.0, -0.8, -0.5),
+        vec3(0.0+.2, 0.6-.7, -0.5),
+        vec3(0.15+.2, 0.2-.7, -0.5),
+        vec3(-0.225+.2, 0.4-.7, -0.5),
+        vec3(0.225+.2, 0.4-.7, -0.5),
+        vec3(-0.15+.2, 0.2-.7, -0.5),
+        vec3(0.0+.2, 0.6-.7, -0.5),
     ];
 
 
@@ -391,7 +393,7 @@ if (start==true){
 
 
 
-    if (panDone == false){
+    if (moonDone == false){
         // Time passed to vertex shader, moves sun and moon
         gl.uniform1f(timeLoc, time);
         gl.uniform1f(moonLoc, moonShift);
@@ -444,22 +446,33 @@ if (start==true){
     if (pause >= 0.5 && panAccel > 0.0001){
         angle = pan;
         pan += panAccel;
+        if (pan > 2 * Math.PI) {
+            pan -= 2 * Math.PI;
+        }
+
 
         moonShift = pan;
 
         if (panTime < 3.0){
             panAccel *= 1.02;
             panTime += 0.01;
+            if (panTime >= 2.3){
+                moonDone = true;
+            }
         }
         else if (panTime >= 3.0){
             panAccel *= 0.978;
-            console.log(panAccel);
+            panTime += 0.01;
+            console.log("PanAccel: ", panAccel);
+            if (panTime >= 4.0){
+                    starReady = true;
+                }
         }
     }
     else if (panAccel <= 0.0001){
         panDone = true;
     }
-
+/*
     if (panDone && !panDown) {
         panDown = true;
 
@@ -475,14 +488,21 @@ if (start==true){
         }
         console.log("Pan down amount", panDownAmount);
     }
+*/
 
     eye = vec3(0.0, 0.0, 1.0);
-    if (panDown == false){
-        at = vec3(Math.sin(angle) * 0.5, -Math.sin(angle) * 1.2, -Math.cos(angle));
+    // Camera pans vertically in a smooth loop
+    var verticalAngle = pan; // reuse same variable
+    var radius = 1.5; // how far the camera looks
+    var y = Math.sin(verticalAngle); // up/down motion
+    var z = Math.cos(verticalAngle); // depth to keep it looping
+
+    if (panDown == false) {
+        at = vec3(0.0, y, -z);
+    } else {
+        at = vec3(0.0, y - panDownAmount, -z);
     }
-    else if (panDown == true){
-        at = vec3(Math.sin(angle) * 0.5, -Math.sin(angle) * 1.2 - panDownAmount, -Math.cos(angle));
-    }
+
     up  = vec3(0.0, 1.0, 0.0);
 
     var starView = lookAt(eye, at, up);
@@ -504,7 +524,7 @@ if (start==true){
     gl.enableVertexAttribArray(positionLoc);
     gl.drawArrays(gl.POINTS, 0, starVertices.length);
 
-    if (panDown) {
+    if (starReady) {
         var aspect = canvas.width / canvas.height;
         var starProjection = perspective(45.0, aspect, 0.1, 100.0);
         gl.uniformMatrix4fv(projectionMatrixLoc, false, flatten(starProjection));
